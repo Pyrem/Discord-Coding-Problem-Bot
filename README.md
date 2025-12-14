@@ -169,6 +169,49 @@ src/main/java/com/pyrem/leetcodebot/
 - One table per company-timerange combination
 - Stores: problem number, name, acceptance rate, difficulty, frequency, URL
 
+## Docker Deployment
+
+### Local Development with Docker
+
+```bash
+# Create .env file from template
+cp .env.example .env
+# Edit .env and add your Discord bot token
+
+# Start all services
+docker-compose up -d
+
+# Pull Ollama model (one-time setup)
+docker exec -it leetcode-bot-ollama ollama pull llama3.2
+
+# View logs
+docker-compose logs -f discord-bot
+
+# Stop services
+docker-compose down
+```
+
+### AWS Deployment
+
+Multiple deployment options available for AWS:
+
+1. **Single EC2 Instance** (Recommended for getting started)
+   - Simple setup with Docker Compose
+   - ~$35/month
+   - See: `deploy/AWS_DEPLOYMENT_GUIDE.md`
+
+2. **AWS ECS Fargate** (Recommended for production)
+   - Fully managed, auto-scaling
+   - ~$64/month
+   - See: `deploy/AWS_DEPLOYMENT_GUIDE.md`
+
+3. **AWS ECS on EC2** (Cost-optimized)
+   - Balance of control and automation
+   - ~$48/month
+   - See: `deploy/AWS_DEPLOYMENT_GUIDE.md`
+
+**For detailed AWS deployment instructions, see [AWS Deployment Guide](deploy/AWS_DEPLOYMENT_GUIDE.md)**
+
 ## TODO
 
 - [ ] Implement actual LeetCode API client (replace `MockLeetCodeClient`)
@@ -176,8 +219,9 @@ src/main/java/com/pyrem/leetcodebot/
 - [ ] Implement pagination for large result sets
 - [ ] Add admin commands for cache management
 - [ ] Add unit and integration tests
-- [ ] Set up Docker containerization
+- [x] Set up Docker containerization
 - [ ] Add metrics and monitoring
+- [ ] Add health check endpoints
 
 ## Contributing
 
