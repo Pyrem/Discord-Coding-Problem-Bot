@@ -24,6 +24,7 @@
         <java.version>21</java.version>
         <spring-ai.version>1.0.0-M4</spring-ai.version>
         <jda.version>5.2.1</jda.version>
+        <spring-cloud-aws.version>3.1.0</spring-cloud-aws.version>
     </properties>
 
     <dependencies>
@@ -81,6 +82,21 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Spring Cloud AWS for Parameter Store integration -->
+        <dependency>
+            <groupId>io.awspring.cloud</groupId>
+            <artifactId>spring-cloud-aws-starter-parameter-store</artifactId>
+            <version>${spring-cloud-aws.version}</version>
+        </dependency>
+
+        <!-- AWS SDK v2 for Systems Manager (if needed for manual access) -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>ssm</artifactId>
+            <version>2.20.0</version>
             <optional>true</optional>
         </dependency>
 
