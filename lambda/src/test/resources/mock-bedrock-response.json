@@ -1,0 +1,11 @@
+{
+  "content": [
+    {
+      "text": "{\"companies\":[\"Microsoft\"],\"timeRange\":null,\"explicitTimeRange\":false}"
+    }
+  ],
+  "usage": {
+    "input_tokens": 250,
+    "output_tokens": 50
+  }
+}

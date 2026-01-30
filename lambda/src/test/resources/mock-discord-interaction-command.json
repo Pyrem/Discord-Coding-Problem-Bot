@@ -1,0 +1,17 @@
+{
+  "id": "123456789012345679",
+  "application_id": "987654321098765432",
+  "type": 2,
+  "data": {
+    "name": "leetcode",
+    "options": [
+      {
+        "name": "query",
+        "value": "can someone post microsoft questions?"
+      }
+    ]
+  },
+  "channel_id": "111222333444555666",
+  "token": "mock_interaction_token_command",
+  "version": 1
+}
