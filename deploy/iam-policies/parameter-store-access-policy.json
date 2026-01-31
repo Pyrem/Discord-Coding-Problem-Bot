@@ -1,0 +1,41 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowGetDiscordBotParameters",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:GetParametersByPath"
+      ],
+      "Resource": [
+        "arn:aws:ssm:*:*:parameter/discord-bot/*"
+      ]
+    },
+    {
+      "Sid": "AllowDecryptParameters",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": [
+            "ssm.us-east-1.amazonaws.com",
+            "ssm.us-west-2.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "AllowDescribeParameters",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:DescribeParameters"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

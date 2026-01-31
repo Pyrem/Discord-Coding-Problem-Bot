@@ -1,0 +1,89 @@
+{
+  "family": "discord-leetcode-bot",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::YOUR_ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::YOUR_ACCOUNT_ID:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "discord-bot",
+      "image": "YOUR_ACCOUNT_ID.dkr.ecr.YOUR_REGION.amazonaws.com/discord-leetcode-bot:latest",
+      "essential": true,
+      "environment": [
+        {
+          "name": "SPRING_PROFILES_ACTIVE",
+          "value": "ec2"
+        },
+        {
+          "name": "SPRING_DATASOURCE_URL",
+          "value": "jdbc:postgresql://YOUR_RDS_ENDPOINT:5432/leetcode_bot"
+        },
+        {
+          "name": "SPRING_DATASOURCE_USERNAME",
+          "value": "postgres"
+        },
+        {
+          "name": "SPRING_AI_OLLAMA_BASE_URL",
+          "value": "http://localhost:11434"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "DISCORD_BOT_TOKEN",
+          "valueFrom": "arn:aws:secretsmanager:YOUR_REGION:YOUR_ACCOUNT_ID:secret:discord-bot-token"
+        },
+        {
+          "name": "SPRING_DATASOURCE_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:YOUR_REGION:YOUR_ACCOUNT_ID:secret:postgres-password"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/discord-leetcode-bot",
+          "awslogs-region": "YOUR_REGION",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    },
+    {
+      "name": "ollama",
+      "image": "ollama/ollama:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 11434,
+          "protocol": "tcp"
+        }
+      ],
+      "mountPoints": [
+        {
+          "sourceVolume": "ollama-data",
+          "containerPath": "/root/.ollama"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/discord-leetcode-bot",
+          "awslogs-region": "YOUR_REGION",
+          "awslogs-stream-prefix": "ollama"
+        }
+      }
+    }
+  ],
+  "volumes": [
+    {
+      "name": "ollama-data",
+      "efsVolumeConfiguration": {
+        "fileSystemId": "fs-YOUR_EFS_ID",
+        "transitEncryption": "ENABLED",
+        "authorizationConfig": {
+          "accessPointId": "fsap-YOUR_ACCESS_POINT_ID"
+        }
+      }
+    }
+  ]
+}

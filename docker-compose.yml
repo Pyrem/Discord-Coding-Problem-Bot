@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database
+  postgres:
+    image: postgres:16-alpine
+    container_name: leetcode-bot-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: leetcode_bot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Ollama for LLM inference
+  ollama:
+    image: ollama/ollama:latest
+    container_name: leetcode-bot-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    # Note: After first start, exec into container and run:
+    # docker exec -it leetcode-bot-ollama ollama pull llama3.2
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Discord Bot Application
+  discord-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: leetcode-bot-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    environment:
+      # Spring Profile
+      SPRING_PROFILES_ACTIVE: ec2
+
+      # Database Configuration
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/leetcode_bot
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-postgres}
+
+      # Ollama Configuration
+      SPRING_AI_OLLAMA_BASE_URL: http://ollama:11434
+
+      # Discord Bot Token (REQUIRED - set in .env file)
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
+
+      # JVM Options for containerized environment
+      JAVA_OPTS: -Xmx512m -Xms256m
+    # Uncomment if you add health check endpoint
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+
+volumes:
+  postgres_data:
+    driver: local
+  ollama_data:
+    driver: local
