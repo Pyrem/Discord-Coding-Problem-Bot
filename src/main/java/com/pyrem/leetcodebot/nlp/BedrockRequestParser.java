@@ -5,28 +5,27 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pyrem.leetcodebot.model.CompanyProblemRequest;
 import com.pyrem.leetcodebot.model.TimeRange;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.chat.prompt.PromptTemplate;
-import org.springframework.stereotype.Service;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.bedrockruntime.BedrockRuntimeClient;
+import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelRequest;
+import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Service for parsing natural language Discord messages into structured CompanyProblemRequest objects
- * Uses Spring AI with Ollama (llama3.2) for NLP processing
+ * Uses AWS Bedrock with Claude 3 Haiku for NLP processing
  */
-@Service
-@RequiredArgsConstructor
 @Slf4j
-public class RequestParserService {
+public class BedrockRequestParser {
 
-    private final ChatClient.Builder chatClientBuilder;
-    private final ObjectMapper objectMapper;
+    private static final ObjectMapper objectMapper = new ObjectMapper();
+    private final BedrockRuntimeClient bedrockClient;
+    private final String modelId;
 
     private static final String PARSING_PROMPT = """
         You are a helpful assistant that extracts structured information from user requests about LeetCode problems.
@@ -35,14 +34,14 @@ public class RequestParserService {
         1. Company names (e.g., Microsoft, Google, Amazon, Meta, Apple)
         2. Time range if specified (e.g., "30 days", "3 months", "6 months", "all time")
 
-        User message: "{message}"
+        User message: "%s"
 
         Respond ONLY with a JSON object in this exact format (no additional text):
-        {{
+        {
           "companies": ["Company1", "Company2"],
           "timeRange": "last30days|last3months|last6months|morethan6months|all|null",
           "explicitTimeRange": true|false
-        }}
+        }
 
         Rules:
         - If no companies are mentioned, return an empty array
@@ -52,10 +51,26 @@ public class RequestParserService {
         - For time ranges: map "30 days" to "last30days", "3 months" to "last3months", etc.
 
         Examples:
-        - "Microsoft?" -> {{"companies": ["Microsoft"], "timeRange": null, "explicitTimeRange": false}}
-        - "Google problems from last 30 days" -> {{"companies": ["Google"], "timeRange": "last30days", "explicitTimeRange": true}}
-        - "Amazon and Meta 6 months" -> {{"companies": ["Amazon", "Meta"], "timeRange": "last6months", "explicitTimeRange": true}}
+        - "Microsoft?" -> {"companies": ["Microsoft"], "timeRange": null, "explicitTimeRange": false}
+        - "Google problems from last 30 days" -> {"companies": ["Google"], "timeRange": "last30days", "explicitTimeRange": true}
+        - "Amazon and Meta 6 months" -> {"companies": ["Amazon", "Meta"], "timeRange": "last6months", "explicitTimeRange": true}
         """;
+
+    public BedrockRequestParser() {
+        String region = System.getenv("AWS_REGION");
+        if (region == null || region.isBlank()) {
+            region = "us-east-1";
+        }
+
+        this.bedrockClient = BedrockRuntimeClient.builder()
+            .region(Region.of(region))
+            .build();
+
+        this.modelId = System.getenv("BEDROCK_MODEL_ID");
+        if (this.modelId == null || this.modelId.isBlank()) {
+            log.warn("BEDROCK_MODEL_ID not set, using default: anthropic.claude-3-haiku-20240307-v1:0");
+        }
+    }
 
     /**
      * Parse a natural language message into a structured CompanyProblemRequest
@@ -64,27 +79,82 @@ public class RequestParserService {
         log.info("Parsing request: {}", message);
 
         try {
-            // Create chat client
-            ChatClient chatClient = chatClientBuilder.build();
-
-            // Create prompt
-            PromptTemplate promptTemplate = new PromptTemplate(PARSING_PROMPT);
-            Prompt prompt = promptTemplate.create(Map.of("message", message));
-
-            // Call Ollama via Spring AI
-            String response = chatClient.prompt(prompt)
-                .call()
-                .content();
-
-            log.debug("LLM Response: {}", response);
-
-            // Parse JSON response
+            String response = invokeBedrockModel(message);
+            log.debug("Bedrock Response: {}", response);
             return parseJsonResponse(response);
 
         } catch (Exception e) {
-            log.error("Error parsing request with LLM: {}", e.getMessage(), e);
+            log.error("Error parsing request with Bedrock: {}", e.getMessage(), e);
             // Fallback to simple parsing
             return fallbackParsing(message);
+        }
+    }
+
+    /**
+     * Invoke the Bedrock model with Claude 3 Haiku
+     */
+    private String invokeBedrockModel(String userMessage) {
+        String prompt = String.format(PARSING_PROMPT, userMessage);
+
+        // Build the Claude 3 request payload
+        String requestBody = buildClaudeRequest(prompt);
+
+        String model = modelId != null ? modelId : "anthropic.claude-3-haiku-20240307-v1:0";
+
+        InvokeModelRequest request = InvokeModelRequest.builder()
+            .modelId(model)
+            .contentType("application/json")
+            .accept("application/json")
+            .body(SdkBytes.fromString(requestBody, StandardCharsets.UTF_8))
+            .build();
+
+        InvokeModelResponse response = bedrockClient.invokeModel(request);
+
+        String responseBody = response.body().asUtf8String();
+        return extractContentFromClaudeResponse(responseBody);
+    }
+
+    /**
+     * Build the Claude 3 Anthropic Messages API request
+     */
+    private String buildClaudeRequest(String prompt) {
+        try {
+            var requestNode = objectMapper.createObjectNode();
+            requestNode.put("anthropic_version", "bedrock-2023-05-31");
+            requestNode.put("max_tokens", 500);
+            requestNode.put("temperature", 0.0);
+
+            var messagesArray = objectMapper.createArrayNode();
+            var messageNode = objectMapper.createObjectNode();
+            messageNode.put("role", "user");
+            messageNode.put("content", prompt);
+            messagesArray.add(messageNode);
+
+            requestNode.set("messages", messagesArray);
+
+            return objectMapper.writeValueAsString(requestNode);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to build Claude request", e);
+        }
+    }
+
+    /**
+     * Extract the text content from Claude's response
+     */
+    private String extractContentFromClaudeResponse(String responseBody) {
+        try {
+            JsonNode responseNode = objectMapper.readTree(responseBody);
+            JsonNode contentArray = responseNode.get("content");
+            if (contentArray != null && contentArray.isArray() && !contentArray.isEmpty()) {
+                JsonNode firstContent = contentArray.get(0);
+                if (firstContent.has("text")) {
+                    return firstContent.get("text").asText();
+                }
+            }
+            return responseBody;
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to parse Claude response, returning raw: {}", e.getMessage());
+            return responseBody;
         }
     }
 
@@ -141,7 +211,7 @@ public class RequestParserService {
     }
 
     /**
-     * Fallback parsing using simple string matching when LLM fails
+     * Fallback parsing using simple string matching when Bedrock fails
      */
     private CompanyProblemRequest fallbackParsing(String message) {
         log.info("Using fallback parsing for: {}", message);
@@ -164,7 +234,6 @@ public class RequestParserService {
         List<String> companies = new ArrayList<>();
         String lower = message.toLowerCase();
 
-        // Common company names
         String[] companyNames = {
             "Microsoft", "Google", "Amazon", "Meta", "Facebook",
             "Apple", "Netflix", "Tesla", "Uber", "Lyft",
@@ -197,6 +266,6 @@ public class RequestParserService {
             return TimeRange.ALL;
         }
 
-        return null; // No explicit time range
+        return null;
     }
 }

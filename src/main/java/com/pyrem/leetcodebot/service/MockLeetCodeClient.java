@@ -4,25 +4,23 @@ import com.pyrem.leetcodebot.model.LeetCodeProblem;
 import com.pyrem.leetcodebot.model.ProblemDifficulty;
 import com.pyrem.leetcodebot.model.TimeRange;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
 /**
- * Mock LeetCode client for testing purposes
+ * Mock LeetCode client for testing purposes.
  * TODO: Replace with actual LeetCode API integration
  */
-@Component
 @Slf4j
 public class MockLeetCodeClient {
 
     private final Random random = new Random();
 
     /**
-     * Mock method to fetch problems from LeetCode API
-     * Returns mock data for testing
+     * Mock method to fetch problems from LeetCode API.
+     * Returns mock data for testing.
      */
     public List<LeetCodeProblem> fetchProblems(String company, TimeRange timeRange) {
         log.info("MOCK: Fetching problems for company: {}, timeRange: {}", company, timeRange);

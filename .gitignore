@@ -28,11 +28,16 @@ Thumbs.db
 *.log
 logs/
 
-# Application - local overrides only
-# Note: application-local.properties and application-ec2.properties are tracked
-# Create application-local-override.properties for local changes
-application-*-override.properties
+# Environment files
 *.env
+.env.*
 
 # Compiled
 *.class
+
+# AWS SAM
+.aws-sam/
+samconfig.toml.backup
+
+# Test outputs
+/tmp/test-event.json

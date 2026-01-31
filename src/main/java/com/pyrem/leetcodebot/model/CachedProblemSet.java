@@ -1,6 +1,5 @@
 package com.pyrem.leetcodebot.model;
 
-import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -9,67 +8,54 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * Entity representing metadata about cached problem sets
- * Tracks when each company-timerange combination was last fetched
+ * Represents cache metadata for a problem set stored in DynamoDB.
+ * Used to track when data was last updated and problem counts.
  */
-@Entity
-@Table(name = "cached_problem_sets")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class CachedProblemSet {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
     /**
-     * Name of the company (normalized)
+     * Normalized company name (lowercase, no special chars)
      */
-    @Column(nullable = false)
     private String companyName;
 
     /**
-     * Time range key (e.g., "last30days")
+     * Time range key (e.g., "last30days", "last3months")
      */
-    @Column(nullable = false)
     private String timeRange;
 
     /**
-     * Table name where the problems are stored
+     * Number of problems cached
      */
-    @Column(nullable = false, unique = true)
-    private String tableName;
-
-    /**
-     * Number of problems in this cached set
-     */
-    @Column(nullable = false)
     private Integer problemCount;
 
     /**
-     * When this problem set was last fetched/updated
+     * When the cache was last updated
      */
-    @Column(nullable = false)
     private LocalDateTime lastUpdated;
 
     /**
-     * When this problem set was created
+     * When the cache entry was created
      */
-    @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        lastUpdated = LocalDateTime.now();
+    /**
+     * Check if the cache is expired based on expiry days
+     */
+    public boolean isExpired(int expiryDays) {
+        if (lastUpdated == null) {
+            return true;
+        }
+        return lastUpdated.plusDays(expiryDays).isBefore(LocalDateTime.now());
     }
 
     /**
-     * Check if this cached problem set is expired (older than specified days)
+     * Get the composite key for this cache entry
      */
-    public boolean isExpired(int expiryDays) {
-        return lastUpdated.plusDays(expiryDays).isBefore(LocalDateTime.now());
+    public String getCacheKey() {
+        return companyName + "_" + timeRange;
     }
 }

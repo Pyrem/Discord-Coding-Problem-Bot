@@ -1,119 +1,123 @@
 # Discord LeetCode Bot
 
-A Spring Boot Discord bot that monitors Discord channels, processes natural language requests for LeetCode company problem sets, and returns curated problem lists with intelligent caching.
+A serverless Discord bot that processes natural language requests for LeetCode company problem sets, built on AWS Lambda, Bedrock, and DynamoDB.
 
 ## Features
 
-- **Natural Language Processing**: Uses Spring AI with Ollama (llama3.2) to parse Discord messages
-- **Intelligent Caching**: Write-through cache with 30-day expiration in PostgreSQL
+- **Natural Language Processing**: Uses AWS Bedrock with Claude 3 Haiku to parse Discord messages
+- **Serverless Architecture**: Runs on AWS Lambda with pay-per-use pricing
+- **Intelligent Caching**: DynamoDB with TTL-based expiration (30 days)
 - **Automatic Time Range Selection**: Finds the most recent problem set with at least 30 problems
 - **Rich Discord Embeds**: Beautiful problem displays similar to LeetCode's interface
-- **Dynamic Table Management**: Creates company-specific tables for denormalized data storage
-- **Multi-Profile Support**: Separate configurations for local development and EC2 deployment
+- **Discord Slash Commands**: Uses Discord Interactions API for reliable webhook-based integration
+- **Infrastructure as Code**: AWS SAM template for easy deployment
 
 ## Architecture
 
-- **Frontend**: Discord chat interface (via JDA)
-- **Backend**: Spring Boot 3.5.7 with Spring AI
-- **Database**: PostgreSQL with dynamic table creation
-- **NLP Model**: Ollama llama3.2 (3B) for request parsing
-- **Build System**: Maven
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         DISCORD                                  │
+│  User types: /leetcode query:"Google problems from last 30 days"│
+└─────────────────────────┬───────────────────────────────────────┘
+                          │ HTTPS webhook
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    API GATEWAY                                   │
+│  POST /discord/interactions                                      │
+└─────────────────────────┬───────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    LAMBDA (Java 21)                              │
+│  • Verify Discord signature                                      │
+│  • Parse command with Bedrock                                    │
+│  • Query/cache DynamoDB                                          │
+│  • Return Discord embed response                                 │
+└───────────┬─────────────────────────────────┬───────────────────┘
+            │                                 │
+            ▼                                 ▼
+┌───────────────────────┐         ┌───────────────────────────────┐
+│     AWS BEDROCK       │         │         DYNAMODB              │
+│  Claude 3 Haiku       │         │  Single-table design          │
+│  (NLP parsing)        │         │  TTL-based cache expiration   │
+└───────────────────────┘         └───────────────────────────────┘
+```
+
+## Cost Estimate
+
+| Component | Monthly Cost (Low Traffic) |
+|-----------|---------------------------|
+| Lambda | ~$0.50-2 |
+| DynamoDB | ~$1-5 |
+| Bedrock | ~$0.10-1 |
+| **Total** | **~$2-8/month** |
 
 ## Prerequisites
 
 - Java 21
-- PostgreSQL 12+
-- Ollama with llama3.2 model installed
-- Discord Bot Token
+- Maven 3.8+
+- AWS CLI configured with appropriate credentials
+- AWS SAM CLI
+- Discord Application with Bot Token
 
 ## Quick Start
 
-### 1. Install Ollama and Pull Model
+### 1. Create Discord Application
+
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
+2. Create a new application
+3. Go to "Bot" section and create a bot
+4. Copy the following values:
+   - Application ID (General Information)
+   - Public Key (General Information)
+   - Bot Token (Bot section)
+
+### 2. Set Environment Variables
 
 ```bash
-# Install Ollama (visit https://ollama.ai for installation instructions)
-# Pull the llama3.2 model
-ollama pull llama3.2
+export DISCORD_PUBLIC_KEY="your-public-key"
+export DISCORD_BOT_TOKEN="your-bot-token"
+export DISCORD_APPLICATION_ID="your-application-id"
 ```
 
-### 2. Set Up PostgreSQL
-
-```bash
-# Create database
-createdb leetcode_bot
-
-# Or using psql
-psql -U postgres -c "CREATE DATABASE leetcode_bot;"
-```
-
-### 3. Configure Discord Bot Token
-
-Edit `src/main/resources/application.properties` and set your Discord bot token:
-
-```properties
-discord.bot.token=YOUR_DISCORD_BOT_TOKEN_HERE
-```
-
-### 4. Build and Run
+### 3. Build and Deploy
 
 ```bash
 # Build the project
-mvn clean package
+mvn clean package -DskipTests
 
-# Run locally
-mvn spring-boot:run
-
-# Or run the JAR
-java -jar target/discord-leetcode-bot-1.0.0-SNAPSHOT.jar
+# Deploy to AWS
+./scripts/deploy.sh dev
 ```
 
-## Configuration
+### 4. Configure Discord Webhook
 
-### Application Profiles
+1. Copy the API Gateway URL from the deployment output
+2. Go to Discord Developer Portal → Your Application → General Information
+3. Set "Interactions Endpoint URL" to: `https://your-api-gateway-url/dev/discord/interactions`
+4. Discord will verify the endpoint (should succeed if deployed correctly)
 
-**Local Development** (`application-local.properties`):
-- PostgreSQL on localhost:5432
-- Ollama on localhost:11434
-- Verbose logging
+### 5. Register Slash Commands
 
-**EC2 Production** (`application-ec2.properties`):
-- Environment variable support for credentials
-- Connection pooling optimized for production
-- Reduced logging
-
-Activate a profile:
 ```bash
-mvn spring-boot:run -Dspring-boot.run.profiles=ec2
+./scripts/register-commands.sh
 ```
 
-### Key Configuration Properties
+### 6. Invite Bot to Server
 
-```properties
-# Cache expiry (days)
-leetcode.cache.expiry.days=30
+1. Go to Discord Developer Portal → Your Application → OAuth2 → URL Generator
+2. Select scopes: `bot`, `applications.commands`
+3. Select bot permissions: `Send Messages`, `Embed Links`
+4. Use the generated URL to invite the bot
 
-# Minimum problems required in a set
-leetcode.problemset.min.size=30
+## Usage
 
-# Maximum problems to store/return
-leetcode.problemset.max.size=50
-
-# Ollama configuration
-spring.ai.ollama.base-url=http://localhost:11434
-spring.ai.ollama.chat.options.model=llama3.2
-```
-
-## Usage Examples
-
-### Discord Commands
-
-Simply type natural language requests in any Discord channel where the bot has access:
+### Discord Slash Command
 
 ```
-Microsoft?
-Google problems from last 30 days
-Amazon and Meta 6 months
-Show me Apple LeetCode questions
+/leetcode query:Microsoft problems from last 30 days
+/leetcode query:Google?
+/leetcode query:Amazon and Meta 6 months
 ```
 
 ### Response Format
@@ -121,53 +125,111 @@ Show me Apple LeetCode questions
 The bot returns rich embeds showing:
 - Problem number and name (clickable link to LeetCode)
 - Acceptance rate
-- Difficulty level (color-coded)
+- Difficulty level (color-coded: green=Easy, yellow=Medium, red=Hard)
 - Frequency visualization (progress bar)
 
 ## Project Structure
 
 ```
-src/main/java/com/pyrem/leetcodebot/
-├── DiscordLeetCodeBotApplication.java  # Main application class
-├── config/                              # Spring configuration
-│   └── SpringAiConfig.java
-├── discord/                             # Discord bot integration
-│   └── DiscordBotService.java
-├── model/                               # Domain models
-│   ├── CachedProblemSet.java
-│   ├── CompanyProblemRequest.java
-│   ├── LeetCodeProblem.java
-│   ├── ProblemDifficulty.java
-│   └── TimeRange.java
-├── nlp/                                 # Natural language processing
-│   └── RequestParserService.java
-├── repository/                          # Data access layer
-│   ├── CachedProblemSetRepository.java
-│   └── DynamicProblemSetRepository.java
-└── service/                             # Business logic
-    ├── LeetCodeService.java
-    └── MockLeetCodeClient.java
+├── pom.xml                          # Maven configuration
+├── template.yaml                    # AWS SAM template
+├── samconfig.toml                   # SAM deployment config
+├── scripts/
+│   ├── deploy.sh                    # Deployment script
+│   ├── register-commands.sh         # Discord command registration
+│   └── local-test.sh                # Local testing
+└── src/main/java/com/pyrem/leetcodebot/
+    ├── DiscordLambdaHandler.java    # Lambda entry point
+    ├── discord/
+    │   ├── DiscordSignatureVerifier.java
+    │   └── DiscordResponseBuilder.java
+    ├── model/
+    │   ├── CachedProblemSet.java
+    │   ├── CompanyProblemRequest.java
+    │   ├── LeetCodeProblem.java
+    │   ├── ProblemDifficulty.java
+    │   └── TimeRange.java
+    ├── nlp/
+    │   └── BedrockRequestParser.java
+    ├── repository/
+    │   └── DynamoDbRepository.java
+    └── service/
+        ├── LeetCodeService.java
+        └── MockLeetCodeClient.java
 ```
 
-## How It Works
+## Configuration
 
-1. **Message Reception**: Discord bot receives message via JDA
-2. **NLP Parsing**: Spring AI + Ollama parses message into structured request
-3. **Cache Check**: Queries PostgreSQL for cached problem sets (checks expiration)
-4. **Time Range Selection**: If not explicit, finds most recent range with ≥30 problems
-5. **Data Fetching**: If cache miss/expired, fetches from LeetCode API (currently mocked)
-6. **Storage**: Saves problems in company-specific table (e.g., `microsoft_last30days`)
-7. **Response**: Sends rich Discord embeds with problem details
+### Environment Variables
 
-## Database Schema
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DISCORD_PUBLIC_KEY` | Discord application public key | Required |
+| `DISCORD_BOT_TOKEN` | Discord bot token | Required |
+| `DISCORD_APPLICATION_ID` | Discord application ID | Required |
+| `DYNAMODB_TABLE_NAME` | DynamoDB table name | `leetcode-problems-dev` |
+| `BEDROCK_MODEL_ID` | Bedrock model ID | `anthropic.claude-3-haiku-20240307-v1:0` |
+| `CACHE_EXPIRY_DAYS` | Cache TTL in days | `30` |
+| `MIN_PROBLEM_SET_SIZE` | Minimum problems for auto-selection | `30` |
+| `MAX_PROBLEM_SET_SIZE` | Maximum problems to return | `50` |
 
-### Metadata Table: `cached_problem_sets`
-- Tracks all cached problem sets
-- Stores: company, time range, table name, problem count, last updated
+### SAM Template Parameters
 
-### Dynamic Problem Tables (e.g., `microsoft_last30days`)
-- One table per company-timerange combination
-- Stores: problem number, name, acceptance rate, difficulty, frequency, URL
+| Parameter | Description |
+|-----------|-------------|
+| `DiscordPublicKey` | Discord public key for signature verification |
+| `DiscordBotToken` | Discord bot token |
+| `DiscordApplicationId` | Discord application ID |
+| `Environment` | Deployment environment (dev/prod) |
+
+## DynamoDB Schema
+
+### Single-Table Design
+
+**Primary Key:**
+- PK: `COMPANY#{company}`
+- SK: `RANGE#{timeRange}#PROBLEM#{number}` or `RANGE#{timeRange}#METADATA`
+
+**GSI1 (Alternative access):**
+- GSI1PK: `COMPANY#{company}#RANGE#{timeRange}`
+- GSI1SK: `PROBLEM#{number}` or `METADATA`
+
+**TTL:** Automatic expiration after 30 days
+
+## Local Development
+
+### Testing Locally
+
+```bash
+# Run SAM local invoke
+./scripts/local-test.sh
+```
+
+### Running with DynamoDB Local
+
+```bash
+# Start DynamoDB Local
+docker run -p 8000:8000 amazon/dynamodb-local
+
+# Set local endpoint
+export AWS_ENDPOINT_URL=http://localhost:8000
+```
+
+## Deployment Commands
+
+```bash
+# Deploy to development
+./scripts/deploy.sh dev
+
+# Deploy to production
+./scripts/deploy.sh prod
+
+# Validate template
+sam validate
+
+# View logs
+sam logs -n DiscordInteractionFunction --stack-name discord-leetcode-bot-dev --tail
+```
 
 ## TODO
 
@@ -176,8 +238,8 @@ src/main/java/com/pyrem/leetcodebot/
 - [ ] Implement pagination for large result sets
 - [ ] Add admin commands for cache management
 - [ ] Add unit and integration tests
-- [ ] Set up Docker containerization
-- [ ] Add metrics and monitoring
+- [ ] Add CloudWatch alarms and monitoring
+- [ ] Add X-Ray tracing
 
 ## Contributing
 

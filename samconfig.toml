@@ -1,0 +1,46 @@
+# AWS SAM CLI configuration file
+# See: https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-config.html
+
+version = 0.1
+
+[default]
+[default.global.parameters]
+stack_name = "discord-leetcode-bot"
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.validate.parameters]
+lint = true
+
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+resolve_s3 = true
+s3_prefix = "discord-leetcode-bot"
+region = "us-east-1"
+# Parameter overrides - set these in your environment or override on command line
+# parameter_overrides = "DiscordPublicKey=xxx DiscordBotToken=xxx DiscordApplicationId=xxx Environment=dev"
+
+[default.local_start_api.parameters]
+warm_containers = "EAGER"
+
+[default.local_invoke.parameters]
+# Local testing configuration
+
+# Development environment
+[dev]
+[dev.deploy.parameters]
+stack_name = "discord-leetcode-bot-dev"
+s3_prefix = "discord-leetcode-bot-dev"
+parameter_overrides = "Environment=dev"
+confirm_changeset = false
+
+# Production environment
+[prod]
+[prod.deploy.parameters]
+stack_name = "discord-leetcode-bot-prod"
+s3_prefix = "discord-leetcode-bot-prod"
+parameter_overrides = "Environment=prod"
+confirm_changeset = true

@@ -33,7 +33,7 @@ public class CompanyProblemRequest {
     private boolean explicitTimeRange;
 
     /**
-     * Normalize company name for database table naming
+     * Normalize company name for DynamoDB key
      * Converts to lowercase and removes special characters
      */
     public static String normalizeCompanyName(String company) {
@@ -46,12 +46,12 @@ public class CompanyProblemRequest {
     }
 
     /**
-     * Get table name for a specific company and time range
+     * Get cache key for a specific company and time range
      * Format: {normalized_company}_{time_range_key}
      * Example: "microsoft_last30days"
      */
-    public static String getTableName(String company, TimeRange timeRange) {
+    public static String getCacheKey(String company, TimeRange timeRange) {
         String normalizedCompany = normalizeCompanyName(company);
-        return normalizedCompany + "_" + timeRange.getTableSuffix();
+        return normalizedCompany + "_" + timeRange.getKey();
     }
 }

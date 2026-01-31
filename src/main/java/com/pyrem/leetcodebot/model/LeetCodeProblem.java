@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * Represents a LeetCode problem with all relevant metadata.
- * This class is used for both database storage and data transfer.
+ * This class is used for both DynamoDB storage and data transfer.
  */
 @Data
 @Builder

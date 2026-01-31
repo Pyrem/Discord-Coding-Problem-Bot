@@ -33,13 +33,6 @@ public enum TimeRange {
     }
 
     /**
-     * Get table suffix for this time range (e.g., "last30days")
-     */
-    public String getTableSuffix() {
-        return key;
-    }
-
-    /**
      * Parse time range from string (case-insensitive)
      */
     public static TimeRange fromString(String range) {
